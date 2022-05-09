@@ -1,3 +1,5 @@
+# COLAB LINK: https://colab.research.google.com/drive/1MIiMknu7tqp55l9V5RHRPcBHboJXtMbc?authuser=1#scrollTo=pMRXAmMyJUC-
+
 import json
 import tensorflow as tf
 import numpy as np
