@@ -3,9 +3,9 @@ import tensorflow as tf
 import numpy as np
 import matplotlib.pyplot as plt
 # import tensorflow_datasets as tfds
-# import transformers
+import transformers
 # import datasets
-from transformers import AutoTokenizer, TFT5ForConditionalGeneration
+# from transformers import AutoTokenizer
 import datetime
 import os
 
@@ -17,10 +17,10 @@ ACTION = 'action'
 CONSEQUENCE = 'consequence'
 NORM = 'norm'
 
-tokenizer = AutoTokenizer.from_pretrained("t5-base")
+tokenizer = transformers.AutoTokenizer.from_pretrained("t5-base")
 
 def encode_example(example, dataset_type=ACTION, encoder_max_len=250, decoder_max_len=54):
-  # For dataset_type == ACTION
+  # For dataset_type == ACTION (action|context data)
   question = example['intention']
   norm = example['norm']
   context = example['situation']
@@ -70,11 +70,14 @@ def generate_tf_dataset(data):
   return ds
 
 
-def get_data_for_t5(train_file, test_file, dataset_type=ACTION):
-  with open(train_file, 'r') as f:
-    train_data = json.load(f)
-  with open(test_file, 'r') as f:
-    test_data = json.load(f)
+def get_data_for_t5(train_data_dir, test_data_dir, dataset_type=ACTION):
+  train_data, test_data = [], []
+
+  for obj in open(train_data_dir, 'r'):
+    train_data.append(json.loads(obj))
+
+  for obj in open(test_data_dir, 'r'):
+    test_data.append(json.loads(obj))
 
   formatted_train = train_data.map(encode_example)
   formatted_test = test_data.map(encode_example)
@@ -85,3 +88,12 @@ def get_data_for_t5(train_file, test_file, dataset_type=ACTION):
   tf_test = generate_tf_dataset(formatted_test)
 
   return tf_train, tf_test
+
+
+def main():
+    # Pre-process and tokenize the data
+    path = "./moral_stories_datasets/generation/action\|context/norm_distance/"
+    train_data, test_data = get_data_for_t5(
+      path + "train.jsonl",
+      path + "test.jsonl"
+    )
