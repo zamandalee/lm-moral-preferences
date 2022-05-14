@@ -4,7 +4,6 @@ import matplotlib.pyplot as plt
 from transformers import (
     AdamW,
     T5ForConditionalGeneration,
-    get_linear_schedule_with_warmup
 )
 from preprocess import get_data_for_t5, tokenizer
 
@@ -12,7 +11,7 @@ from preprocess import get_data_for_t5, tokenizer
 class Model():
     def __init__(self):
         epochs = 5
-        batch_size = 500
+        batch_size = 240
         num_total_examples = 2400
 
         t5_model = T5ForConditionalGeneration.from_pretrained(
@@ -42,8 +41,8 @@ class Model():
           for ex in small_train_data:
               # Forward function automatically creates decoder_input_ids
               output = self.t5_model(input_ids=ex['input_ids'], lm_labels=ex['lm_labels'],
-                                attention_mask=ex['attention_mask'],
-                                decoder_attention_mask=ex['decoder_attention_mask'])
+                                     attention_mask=ex['attention_mask'],
+                                     decoder_attention_mask=ex['decoder_attention_mask'])
               loss = output[0]
               loss.backward()
               self.optimizer.step()
@@ -77,6 +76,7 @@ class Model():
             results.append(sent)
 
         return results
+
 
 def main():
     # Pre-process the data
