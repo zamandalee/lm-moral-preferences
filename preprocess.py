@@ -1,101 +1,96 @@
 # COLAB LINK: https://colab.research.google.com/drive/1MIiMknu7tqp55l9V5RHRPcBHboJXtMbc?authuser=1#scrollTo=pMRXAmMyJUC-
 
 import json
-import tensorflow as tf
-import numpy as np
-import matplotlib.pyplot as plt
-# import tensorflow_datasets as tfds
+# import tensorflow as tf
 import transformers
-# import datasets
-# from transformers import AutoTokenizer
-import datetime
-import os
+from transformers import AutoTokenizer
 
-# with open('moral_stories_datasets/generation/action\|context/norm_distance/train.jsonl', 'r') as handle:
-#   parsed = json.load(handle)
-# print(json.dumps(parsed, indent=4, sort_keys=True))
-
+# Target (model output) options
 ACTION = 'action'
 CONSEQUENCE = 'consequence'
 NORM = 'norm'
 
+
+# ———————————————–  PREPROCESSING  ———————————————–
+
 tokenizer = transformers.AutoTokenizer.from_pretrained("t5-base")
 
-def encode_example(example, dataset_type=ACTION, encoder_max_len=250, decoder_max_len=54):
-  # For dataset_type == ACTION (action|context data)
-  question = example['intention']
-  norm = example['norm']
-  context = example['situation']
-  answer = example['moral_action']
+def encode_example(example, encoder_max_len=250, decoder_max_len=54):
+    # For dataset_type == ACTION (action|context data)
+    # Format intention, norm, situation, and action
+    question = example['intention']
+    norm = example['norm']
+    context = example['situation']
+    answer = example['moral_action']
 
-  # if dataset_type == CONSEQUENCE:
-  #   context = example['context']
-  # elif dataset_type ==  NORM:
-  #     context = example['context']
+    # into question and answer
+    question_plus = f"{str(norm)}"
+    question_plus += f" {str(context)} </s>"
+    q = f"{str(question)}"
+    answer_plus = f"{answer} </s>"
 
-  question_plus = f"answer_me: {str(question)}"
-  question_plus += f" norm: {str(norm)} </s>"
-  question_plus += f" context: {str(context)} </s>"
+    # Tokenize
+    encoder_inputs = self.tokenizer.encode_plus(
+        question_plus, max_length=encoder_max_len,
+        pad_to_max_length=True, return_tensors="pt"
+    )
+    dtokenizer = AutoTokenizer.from_pretrained("distilbert-base-uncased")
+    decoder_inputs = dtokenizer.encode(
+        q,
+        question_plus,
+        max_length=384,
+        truncation="only_second",
+        return_offsets_mapping=True,
+    )
 
-  answer_plus = ', '.join([i for i in list(answer)])
-  answer_plus = f"{answer_plus} </s>"
+    # Return necessary args for t5 model fine-tuning
+    input_ids = encoder_inputs["input_ids"]
+    input_attention = encoder_inputs["attention_mask"]
+    target_ids = decoder_inputs["input_ids"]
+    target_attention = decoder_inputs["attention_mask"]
 
-  encoder_inputs = tokenizer(question_plus, truncation=True,
-                             return_tensors='tf', max_length=encoder_max_len,
-                             pad_to_max_length=True)
-
-  decoder_inputs = tokenizer(answer_plus, truncation=True,
-                             return_tensors='tf', max_length=decoder_max_len,
-                             pad_to_max_length=True)
-
-  input_ids = encoder_inputs['input_ids'][0]
-  input_attention = encoder_inputs['attention_mask'][0]
-  target_ids = decoder_inputs['input_ids'][0]
-  target_attention = decoder_inputs['attention_mask'][0]
-
-  outputs = {'input_ids': input_ids, 'labels': target_ids,
-             'attention_mask': input_attention, 'decoder_attention_mask': target_attention}
-  return outputs
+    outputs = {'question_plus': question_plus, 'answer_plus': answer_plus,
+              'input_ids': input_ids, 'lm_labels': target_ids,
+              'attention_mask': input_attention,
+              'decoder_attention_mask': target_attention}
+    return outputs
 
 
-def generate_tf_dataset(data):
-  columns = ['input_ids', 'attention_mask', 'labels', 'decoder_attention_mask']
-  data.set_format(type='tensorflow', columns=columns)
+# Legacy from when we were using TF:
+# def generate_tf_dataset(data):
+#   columns = ['input_ids', 'attention_mask', 'labels', 'decoder_attention_mask']
+#   data.set_format(type='tensorflow', columns=columns)
 
-  return_types = {'input_ids': tf.int32, 'attention_mask': tf.int32,
-                  'labels': tf.int32, 'decoder_attention_mask': tf.int32, }
-  return_shapes = {'input_ids': tf.TensorShape([None]), 'attention_mask': tf.TensorShape([None]),
-                   'labels': tf.TensorShape([None]), 'decoder_attention_mask': tf.TensorShape([None])}
+#   return_types = {'input_ids': tf.int32, 'attention_mask': tf.int32,
+#                   'labels': tf.int32, 'decoder_attention_mask': tf.int32, }
+#   return_shapes = {'input_ids': tf.TensorShape([None]), 'attention_mask': tf.TensorShape([None]),
+#                    'labels': tf.TensorShape([None]), 'decoder_attention_mask': tf.TensorShape([None])}
 
-  ds = tf.data.Dataset.from_generator(
-      lambda: data, return_types, return_shapes)
-  return ds
+#   ds = tf.data.Dataset.from_generator(
+#       lambda: data, return_types, return_shapes)
+#   return ds
 
 
 def get_data_for_t5(train_data_dir, test_data_dir, dataset_type=ACTION):
-  train_data, test_data = [], []
+  # Load in the dataset
+  data_dir = ""
+  train_data_dir = data_dir + "train.jsonl"
+  test_data_dir = data_dir + "test.jsonl"
 
+  og_train_data, og_test_data = [], []
   for obj in open(train_data_dir, 'r'):
-    train_data.append(json.loads(obj))
-
+      og_train_data.append(json.loads(obj))
   for obj in open(test_data_dir, 'r'):
-    test_data.append(json.loads(obj))
+      og_test_data.append(json.loads(obj))
 
-  formatted_train = train_data.map(encode_example)
-  formatted_test = test_data.map(encode_example)
-  ex = next(iter(formatted_train))
-  print("Example data from the mapped data: \n", ex)
+  og_train_data = list(filter(lambda x: x['label'] == '1', og_train_data))
+  og_test_data = list(filter(lambda x: x['label'] == '1', og_test_data))
 
-  tf_train = generate_tf_dataset(formatted_train)
-  tf_test = generate_tf_dataset(formatted_test)
+  print("Train, test data lengths: ", len(og_train_data), len(og_test_data))
+  print("Example original data: \n", og_train_data[0])
 
-  return tf_train, tf_test
+  train_data = list(map(encode_example, og_train_data))
+  test_data = list(map(encode_example, og_test_data))
 
+  return train_data, test_data
 
-def main():
-    # Pre-process and tokenize the data
-    path = "./moral_stories_datasets/generation/action\|context/norm_distance/"
-    train_data, test_data = get_data_for_t5(
-      path + "train.jsonl",
-      path + "test.jsonl"
-    )
