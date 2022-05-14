@@ -15,7 +15,8 @@ class Model():
         batch_size = 500
         num_total_examples = 2400
 
-        t5_model = T5ForConditionalGeneration.from_pretrained('t5-large') # Hugging Face pre-trained model
+        t5_model = T5ForConditionalGeneration.from_pretrained(
+            't5-large')  # Hugging Face pre-trained model
 
         no_decay = ["bias", "LayerNorm.weight"]
         optimizer_grouped_parameters = [
@@ -38,44 +39,44 @@ class Model():
       small_train_data = inputs[0:self.num_total_examples]
 
       for i in range(self.epochs):
-        for ex in small_train_data:
-          # Forward function automatically creates decoder_input_ids
-          output = self.t5_model(input_ids=ex['input_ids'], lm_labels=ex['lm_labels'],
-                            attention_mask=ex['attention_mask'],
-                            decoder_attention_mask=ex['decoder_attention_mask'])
-          loss = output[0]
-          loss.backward()
-          self.optimizer.step()
-          self.optimizer.zero_grad()
+          for ex in small_train_data:
+              # Forward function automatically creates decoder_input_ids
+              output = self.t5_model(input_ids=ex['input_ids'], lm_labels=ex['lm_labels'],
+                                attention_mask=ex['attention_mask'],
+                                decoder_attention_mask=ex['decoder_attention_mask'])
+              loss = output[0]
+              loss.backward()
+              self.optimizer.step()
+              self.optimizer.zero_grad()
 
-        print("Epoch ", i, " ✅")
+          print("Epoch ", i, " ✅")
 
       return
 
     # ———————————————–  TESTING  ———————————————–
 
     def test_single_100(self, inputs):
-      results = []
+        results = []
 
-      self.eval()
-      for test_ex in inputs[0:100]:
-        beam_outputs = self.generate(
-            input_ids=test_ex['input_ids'],
-            attention_mask=test_ex['attention_mask'],
-            max_length=64,
-            early_stopping=True,
-            num_beams=10,
-            num_return_sequences=1,
-            no_repeat_ngram_size=2
-        )
+        self.eval()
+        for test_ex in inputs[0:100]:
+            beam_outputs = self.generate(
+                input_ids=test_ex['input_ids'],
+                attention_mask=test_ex['attention_mask'],
+                max_length=64,
+                early_stopping=True,
+                num_beams=10,
+                num_return_sequences=1,
+                no_repeat_ngram_size=2
+            )
 
         for beam_output in beam_outputs:
-          sent = tokenizer.decode(beam_output, skip_special_tokens=True,
-                                  clean_up_tokenization_spaces=True)
-          # print(sent)
-          results.append(sent)
+            sent = tokenizer.decode(beam_output, skip_special_tokens=True,
+                                    clean_up_tokenization_spaces=True)
+            # print(sent)
+            results.append(sent)
 
-      return results
+        return results
 
 def main():
     # Pre-process the data
